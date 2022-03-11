@@ -1,0 +1,10 @@
+*.sw[pmno]
+*.ipynb
+*.pyc
+*.egg-info
+*.dat
+*.lock
+.coverage
+build
+dist
+.vscode

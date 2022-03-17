@@ -4,24 +4,27 @@ import abc
 
 class NodeKernel(Kernel):
 
+    def __call__(self, edge_states, parameter_data):
+
+        self.set_parameter_data(parameter_data)
+        output = self.tick(edge_states)
+        parameter_data = self.get_parameter_data()
+
+        return output, parameter_data
+
     @abc.abstractmethod
-    def tick(self, edge_states, node_parameters):
+    def tick(self, edge_states):
         '''Execute this node kernel.
 
         Args:
 
-            edge_states (tensor of shape ``(n,k)``):
+            edge_states (tensor of shape ``(n, k)``):
 
                 Tensor of the visible incoming edge states, where ``n`` is the
                 number of edges and ``k`` the size of their state vector.
 
-            node_parameters (tensor of shape ``(l,)``):
-
-                Parameters of this node as a vector of size ``l``.
-
         Returns:
 
-            A tuple ``(node_state, node_parameters)`` for the updated state and
-            parameters of this node.
+            The updated state of this node.
         '''
         pass

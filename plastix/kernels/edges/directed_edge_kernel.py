@@ -7,8 +7,19 @@ class DirectedEdgeKernel(EdgeKernel):
     state. More efficient than :class:`EdgeKernel`.
     '''
 
+    def __call__(
+            self,
+            input_node_state,
+            parameter_data):
+
+        self.set_parameter_data(parameter_data)
+        output = self.tick(input_node_state)
+        parameter_data = self.get_parameter_data()
+
+        return output, parameter_data
+
     @abc.abstractmethod
-    def tick(self, input_node_state, edge_parameters):
+    def tick(self, input_node_state):
         '''Execute this edge kernel.
 
         Args:
@@ -17,13 +28,8 @@ class DirectedEdgeKernel(EdgeKernel):
 
                 The visible incoming node state as a vector of size ``k``.
 
-            edge_parameters (tensor of shape ``(l,)``):
-
-                Parameters of this edge as a vector of size ``l``.
-
         Returns:
 
-            A tuple ``(edge_state, edge_parameters)`` for the updated state and
-            parameters of this edge.
+            The updated state of this edge.
         '''
         pass

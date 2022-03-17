@@ -1,11 +1,12 @@
-from .node_kernel import NodeKernel
+from plastix.kernels import Parameter
+from plastix.kernels.nodes import NodeKernel
 import jax.numpy as jnp
 
 
 class SumNonlinear(NodeKernel):
 
-    default_parameters = jnp.array([0.0])
+    bias = Parameter((1,), jnp.zeros)
 
-    def tick(self, edge_states, parameters):
-        activation = jnp.sum(edge_states) + parameters
+    def tick(self, edge_states):
+        activation = jnp.sum(edge_states) + self.bias
         return jnp.tanh(activation)

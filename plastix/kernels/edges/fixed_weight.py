@@ -1,10 +1,11 @@
-from .directed_edge_kernel import DirectedEdgeKernel
+from plastix.kernels import Parameter
+from plastix.kernels.edges import DirectedEdgeKernel
 import jax.numpy as jnp
 
 
 class FixedWeight(DirectedEdgeKernel):
 
-    default_parameters = jnp.array([1.0])
+    weight = Parameter((1,), jnp.ones)
 
-    def tick(self, node_state, parameters):
-        return node_state * parameters
+    def tick(self, node_state):
+        return node_state * self.weight

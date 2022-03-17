@@ -12,7 +12,7 @@ class TestDenseLayer(unittest.TestCase):
             px.kernels.edges.FixedWeight(),
             px.kernels.nodes.SumNonlinear())
 
-        layer.edge_parameters = jnp.array([[0.5], [0.5]])
+        layer.edge_parameters *= 0.5
 
         # 0, 0 -> 0
 

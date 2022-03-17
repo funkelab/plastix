@@ -32,10 +32,14 @@ class DenseLayer:
     def __call__(self, input_node_states, use_jit=True):
 
         tick = self.jit_tick if use_jit else self.tick
-        self.edge_states, self.node_states = tick(
+
+        edge_update, node_update = tick(
             input_node_states,
             self.edge_parameters,
             self.node_parameters)
+
+        self.edge_states, self.edge_parameters = edge_update
+        self.node_states, self.node_parameters = node_update
 
         return self.node_states
 
@@ -60,7 +64,10 @@ class DenseLayer:
         # map over i
         vvkernel = jax.vmap(vkernel)
 
-        edge_states = vvkernel(input_node_states, edge_parameters)
+        edge_states, edge_parameters = vvkernel(
+            input_node_states,
+            edge_parameters)
+        edge_update = (edge_states, edge_parameters)
 
         #######################
         # compute node states #
@@ -73,6 +80,9 @@ class DenseLayer:
         # map over j
         vnode_kernel = jax.vmap(self.node_kernel, in_axes=(1, 0))
 
-        output_node_states = vnode_kernel(edge_states, node_parameters)
+        output_node_states, output_node_parameters = vnode_kernel(
+            edge_states,
+            node_parameters)
+        output_node_udpate = (output_node_states, output_node_parameters)
 
-        return edge_states, output_node_states
+        return edge_update, output_node_udpate

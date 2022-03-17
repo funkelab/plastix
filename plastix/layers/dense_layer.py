@@ -12,12 +12,17 @@ class DenseLayer:
         self.edge_kernel = edge_kernel
         self.node_kernel = node_kernel
 
-        self.edge_parameters = jnp.array(
-            [edge_kernel.default_parameters] * (n * m)
-        ).reshape(n, m, -1)
-        self.node_parameters = jnp.array(
-            [node_kernel.default_parameters] * m
-        ).reshape(m, -1)
+        self.edge_parameters = jnp.array([
+            [
+                edge_kernel.init_parameter_data()
+                for _ in range(m)
+            ]
+            for _ in range(n)
+        ])
+        self.node_parameters = jnp.array([
+            node_kernel.init_parameter_data()
+            for _ in range(m)
+        ])
 
         self.edge_states = jnp.zeros((n, m, 1))
         self.node_states = jnp.zeros((m, 1))

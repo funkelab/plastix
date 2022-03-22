@@ -1,5 +1,4 @@
 import jax
-import jax.numpy as jnp
 
 
 class DenseLayer:
@@ -68,13 +67,19 @@ class DenseLayer:
         # compute edge states #
         #######################
 
+        # pass input node class to edge kernel
+        def edge_kernel(ns, es, ep):
+            return self.edge_kernel(
+                self.node_kernel.__class__,
+                ns, es, ep)
+
         # node_states, edge_{states,parameters} -> edge_{states,parameters}
         # edge_kernel  : (k)_i,  (q)_ij,    (r)_ij    -> (q)_ij, (r)_ij
         # vedge_kernel : (k)_i,  (m, q)_i,  (m, r)_i  -> (m, q)_i, (m, r)_i
         # vvedge_kernel: (n, k), (n, m, q), (n, m, r) -> (n, m, q), (n, m, r)
 
         # map over j
-        vkernel = jax.vmap(self.edge_kernel, in_axes=(None, 0, 0))
+        vkernel = jax.vmap(edge_kernel, in_axes=(None, 0, 0))
         # map over i
         vvkernel = jax.vmap(vkernel)
 
@@ -88,12 +93,18 @@ class DenseLayer:
         # compute node states #
         #######################
 
+        # pass input edge class to node kernel
+        def node_kernel(es, ns, np):
+            return self.node_kernel(
+                self.edge_kernel.__class__,
+                es, ns, np)
+
         # edge_states, node_{states,parameters} -> node_{states,parameters}
         # node_kernel : (n, l)_j,  (k)_j,  (s)_j  -> (k)_j,  (s)_j
         # vnode_kernel: (n, m, l), (m, k), (m, s) -> (m, k), (m, s)
 
         # map over j
-        vnode_kernel = jax.vmap(self.node_kernel, in_axes=(1, 0, 0))
+        vnode_kernel = jax.vmap(node_kernel, in_axes=(1, 0, 0))
 
         node_states, node_parameters = vnode_kernel(
             edge_states,

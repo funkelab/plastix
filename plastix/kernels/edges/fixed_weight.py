@@ -8,5 +8,5 @@ class FixedWeight(DirectedEdgeKernel):
     signal = State((1,), jnp.zeros)
     weight = Parameter((1,), jnp.ones)
 
-    def tick(self, node_state):
-        self.signal = node_state * self.weight
+    def tick(self, node):
+        self.signal = node.rate * self.weight

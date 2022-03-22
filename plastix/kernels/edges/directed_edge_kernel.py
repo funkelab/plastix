@@ -9,14 +9,18 @@ class DirectedEdgeKernel(EdgeKernel):
 
     def __call__(
             self,
-            input_node_state,
+            input_node_class,
+            input_node_state_data,
             state_data,
             parameter_data):
 
         self.set_state_data(state_data)
         self.set_parameter_data(parameter_data)
 
-        self.tick(input_node_state)
+        input_node = input_node_class()
+        input_node.set_state_data(input_node_state_data)
+
+        self.tick(input_node)
 
         state_data = self.get_state_data()
         parameter_data = self.get_parameter_data()
@@ -24,13 +28,15 @@ class DirectedEdgeKernel(EdgeKernel):
         return state_data, parameter_data
 
     @abc.abstractmethod
-    def tick(self, input_node_state):
+    def tick(self, input_node):
         '''Execute this edge kernel.
 
         Args:
 
-            input_node_state (tensor of shape ``(k,)``):
+            input_node (:class:``NodeKernel``):
 
-                The visible incoming node state as a vector of size ``k``.
+                A node kernel, providing semantic access to the input node
+                states. For each state attribute ``x`` of the input node
+                kernel, this kernel has a tensor ``input_node.x``.
         '''
         pass

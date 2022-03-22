@@ -4,13 +4,17 @@ import abc
 
 class NodeKernel(Kernel):
 
-    def __call__(self, edge_states, parameter_data):
+    def __call__(self, edge_states, state_data, parameter_data):
 
+        self.set_state_data(state_data)
         self.set_parameter_data(parameter_data)
-        output = self.tick(edge_states)
+
+        self.tick(edge_states)
+
+        state_data = self.get_state_data()
         parameter_data = self.get_parameter_data()
 
-        return output, parameter_data
+        return state_data, parameter_data
 
     @abc.abstractmethod
     def tick(self, edge_states):
@@ -22,9 +26,5 @@ class NodeKernel(Kernel):
 
                 Tensor of the visible incoming edge states, where ``n`` is the
                 number of edges and ``k`` the size of their state vector.
-
-        Returns:
-
-            The updated state of this node.
         '''
         pass

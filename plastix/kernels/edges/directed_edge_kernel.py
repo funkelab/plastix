@@ -10,13 +10,18 @@ class DirectedEdgeKernel(EdgeKernel):
     def __call__(
             self,
             input_node_state,
+            state_data,
             parameter_data):
 
+        self.set_state_data(state_data)
         self.set_parameter_data(parameter_data)
-        output = self.tick(input_node_state)
+
+        self.tick(input_node_state)
+
+        state_data = self.get_state_data()
         parameter_data = self.get_parameter_data()
 
-        return output, parameter_data
+        return state_data, parameter_data
 
     @abc.abstractmethod
     def tick(self, input_node_state):
@@ -27,9 +32,5 @@ class DirectedEdgeKernel(EdgeKernel):
             input_node_state (tensor of shape ``(k,)``):
 
                 The visible incoming node state as a vector of size ``k``.
-
-        Returns:
-
-            The updated state of this edge.
         '''
         pass

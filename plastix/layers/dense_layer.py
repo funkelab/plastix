@@ -13,28 +13,22 @@ class DenseLayer:
         self.node_kernel = node_kernel
 
         # create state and parameter tensors for all kernels:
-        self.edge_states = jnp.array([
-            [
-                edge_kernel.init_state_data()
-                for _ in range(m)
-            ]
-            for _ in range(n)
-        ])
-        self.node_states = jnp.array([
-            node_kernel.init_state_data()
-            for _ in range(m)
-        ])
-        self.edge_parameters = jnp.array([
-            [
-                edge_kernel.init_parameter_data()
-                for _ in range(m)
-            ]
-            for _ in range(n)
-        ])
-        self.node_parameters = jnp.array([
-            node_kernel.init_parameter_data()
-            for _ in range(m)
-        ])
+        self.edge_states = jax.vmap(
+            jax.vmap(
+                edge_kernel.init_state_data,
+                axis_size=m),
+            axis_size=n)()
+        self.node_states = jax.vmap(
+            node_kernel.init_state_data,
+            axis_size=m)()
+        self.edge_parameters = jax.vmap(
+            jax.vmap(
+                edge_kernel.init_parameter_data,
+                axis_size=m),
+            axis_size=n)()
+        self.node_parameters = jax.vmap(
+            node_kernel.init_parameter_data,
+            axis_size=m)()
 
         # keep a compiled version of tick()
         self.jit_tick = jax.jit(self.tick)

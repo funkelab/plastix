@@ -9,6 +9,7 @@ class KernelAttributes:
 
     def __init__(self):
         self.data = None
+        self.shared_data = None
         self.views = None
 
 
@@ -39,15 +40,33 @@ class Kernel(abc.ABC):
         # assign each state to a slice in the state array
         cls._attribute_slices = {}
         offset = 0
+        shared_offset = 0
         for name, state in cls._states.items():
             length = np.prod(state.shape)
-            cls._attribute_slices[name] = slice(offset, offset + length)
+            if state.shared:
+                begin = shared_offset
+                end = shared_offset + length
+                shared_offset += length
+            else:
+                begin = offset
+                end = offset + length
+                offset += length
+            cls._attribute_slices[name] = slice(begin, end)
 
         # assign each parameter to a slice in the parameter array
         offset = 0
+        shared_offset = 0
         for name, parameter in cls._parameters.items():
             length = np.prod(parameter.shape)
-            cls._attribute_slices[name] = slice(offset, offset + length)
+            if state.shared:
+                begin = shared_offset
+                end = shared_offset + length
+                shared_offset += length
+            else:
+                begin = offset
+                end = offset + length
+                offset += length
+            cls._attribute_slices[name] = slice(begin, end)
 
     @classmethod
     def _get_attribute_slice(cls, name):
@@ -66,72 +85,146 @@ class Kernel(abc.ABC):
         ])
 
     @classmethod
-    def get_states(cls):
+    def _get_attributes(cls, attributes, shared=None):
+
+        if shared is None:
+            return attributes
+
+        return {
+            name: attribute
+            for name, attribute in attributes.items()
+            if attribute.shared == shared
+        }
+
+    @classmethod
+    def get_states(cls, shared=None):
+        '''Get a list of state attributes of this kernel.
+
+        Args:
+
+            shared (bool, default ``None``):
+
+                If ``True``, return only shared states. If ``False``, return
+                only non-shared state. If ``None`` (default), return both.
+        '''
         cls._parse_attributes()
-        return cls._states
+        return cls._get_attributes(cls._states, shared)
 
     @classmethod
     def init_state_data(cls):
-        return cls._init_attribute_data(cls.get_states().values())
+        return cls._init_attribute_data(cls.get_states(shared=False).values())
 
-    def _set_attribute_data(self, attributes, data):
+    @classmethod
+    def init_shared_state_data(cls):
+        return cls._init_attribute_data(cls.get_states(shared=True).values())
+
+    def _set_attribute_data(self, attributes, data, shared_data):
 
         kernel_attributes = KernelAttributes()
         kernel_attributes.data = data
+        kernel_attributes.shared_data = shared_data
         kernel_attributes.views = {}
 
         for name, attribute in attributes.items():
             attribute_slice = self._get_attribute_slice(name)
-            attribute_view = data[attribute_slice].reshape(attribute.shape)
+            if attribute.shared:
+                attribute_view = \
+                    shared_data[attribute_slice].reshape(attribute.shape)
+            else:
+                attribute_view = data[attribute_slice].reshape(attribute.shape)
             self.__setattr__(name, attribute_view)
             kernel_attributes.views[name] = attribute_view
 
         return kernel_attributes
 
-    def set_state_data(self, data):
+    def set_state_data(self, data, shared_data=None):
         self.__states = self._set_attribute_data(
             self.get_states(),
-            data)
+            data,
+            shared_data)
 
-    def get_state_data(self):
+    def get_state_data(self, include_shared=False):
 
         # if nothing was changed, no reason to create a new tensor
         if all(
                 getattr(self, name) is self.__states.views[name]
-                for name in self.get_states().keys()):
-            return self.__states.data
+                for name in self.get_states(shared=False).keys()):
+            data = self.__states.data
 
-        return jnp.concatenate([
+        else:
+
+            data = jnp.concatenate([
+                getattr(self, name).reshape(-1)
+                for name, _ in self.get_states(shared=False).items()
+            ])
+
+        if not include_shared:
+            return data
+
+        shared_data = jnp.concatenate([
             getattr(self, name).reshape(-1)
-            for name, _ in self.get_states().items()
+            for name, _ in self.get_states(shared=True).items()
         ])
 
+        return data, shared_data
+
     @classmethod
-    def get_parameters(cls):
+    def get_parameters(cls, shared=None):
+        '''Get a list of parameter attributes of this kernel.
+
+        Args:
+
+            shared (bool, default ``None``):
+
+                If ``True``, return only shared parameters. If ``False``,
+                return only non-shared parameter. If ``None`` (default), return
+                both.
+        '''
         cls._parse_attributes()
-        return cls._parameters
+        return cls._get_attributes(cls._parameters, shared)
 
     @classmethod
     def init_parameter_data(cls):
-        return cls._init_attribute_data(cls.get_parameters().values())
+        return cls._init_attribute_data(
+            cls.get_parameters(shared=False).values()
+        )
 
-    def set_parameter_data(self, data):
+    @classmethod
+    def init_shared_parameter_data(cls):
+        return cls._init_attribute_data(
+            cls.get_parameters(shared=True).values()
+        )
+
+    def set_parameter_data(self, data, shared_data=None):
         self.__parameters = self._set_attribute_data(
             self.get_parameters(),
-            data)
+            data,
+            shared_data)
 
-    def get_parameter_data(self):
+    def get_parameter_data(self, include_shared=False):
 
         # if nothing was changed, no reason to create a new tensor
         if all(
                 getattr(self, name) is self.__parameters.views[name]
-                for name in self.get_parameters().keys()):
-            return self.__parameters.data
+                for name in self.get_parameters(shared=False).keys()):
+            data = self.__parameters.data
 
-        return jnp.concatenate([
+        else:
+
+            data = jnp.concatenate([
+                getattr(self, name).reshape(-1)
+                for name, _ in self.get_parameters(shared=False).items()
+            ])
+
+        if not include_shared:
+            return data
+
+        shared_data = jnp.concatenate([
             getattr(self, name).reshape(-1)
-            for name, _ in self.get_parameters().items()
+            for name, _ in self.get_parameters(shared=True).items()
         ])
+
+        return data, shared_data
 
     def __getattr__(self, name):
 

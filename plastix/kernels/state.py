@@ -13,8 +13,14 @@ class State:
 
             An initialization function to populate the inital values for this
             state. Should take ``shape`` as an argument.
+
+        shared (bool):
+
+            Set to if this state is to be shared with other kernels that
+            declared it in the same way.
     '''
 
-    def __init__(self, shape, init_fun=None):
+    def __init__(self, shape, init_fun=None, shared=False):
         self.shape = shape
         self.init_fun = init_fun
+        self.shared = shared

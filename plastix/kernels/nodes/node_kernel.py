@@ -8,12 +8,14 @@ class NodeKernel(Kernel):
     def __call__(
             self,
             edge_class,
-            edge_states_data,
+            shared_state_data,
+            shared_parameter_data,
             state_data,
-            parameter_data):
+            parameter_data,
+            edge_states_data):
 
-        self.set_state_data(state_data)
-        self.set_parameter_data(parameter_data)
+        self.set_state_data(state_data, shared_state_data)
+        self.set_parameter_data(parameter_data, shared_parameter_data)
 
         edges = StatesView(edge_class, edge_states_data)
 

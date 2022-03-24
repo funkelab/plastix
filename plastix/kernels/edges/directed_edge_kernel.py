@@ -10,12 +10,14 @@ class DirectedEdgeKernel(EdgeKernel):
     def __call__(
             self,
             input_node_class,
-            input_node_state_data,
+            shared_state_data,
+            shared_parameter_data,
             state_data,
-            parameter_data):
+            parameter_data,
+            input_node_state_data):
 
-        self.set_state_data(state_data)
-        self.set_parameter_data(parameter_data)
+        self.set_state_data(state_data, shared_state_data)
+        self.set_parameter_data(parameter_data, shared_parameter_data)
 
         input_node = input_node_class()
         input_node.set_state_data(input_node_state_data)

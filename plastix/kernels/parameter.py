@@ -15,6 +15,7 @@ class Parameter:
             parameter. Should take ``shape`` as an argument.
     '''
 
-    def __init__(self, shape, init_fun=None):
+    def __init__(self, shape, init_fun=None, shared=False):
         self.shape = shape
         self.init_fun = init_fun
+        self.shared = shared

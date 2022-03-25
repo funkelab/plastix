@@ -1,12 +1,15 @@
 from plastix.kernels import State, Parameter
-from plastix.kernels.edges import DirectedEdgeKernel
+from plastix.kernels.edges import EdgeKernel
 import jax.numpy as jnp
 
 
-class FixedWeight(DirectedEdgeKernel):
+class FixedWeight(EdgeKernel):
 
     signal = State((1,), jnp.zeros)
     weight = Parameter((1,), jnp.ones)
 
-    def tick(self, node):
-        self.signal = node.rate * self.weight
+    def update_state(self, input_node):
+        self.signal = input_node.rate * self.weight
+
+    def update_parameters(self, input_node, output_node):
+        pass

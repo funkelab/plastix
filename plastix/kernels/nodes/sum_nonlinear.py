@@ -8,6 +8,9 @@ class SumNonlinear(NodeKernel):
     rate = State((1,), jnp.zeros)
     bias = Parameter((1,), jnp.zeros)
 
-    def tick(self, edges):
+    def update_state(self, edges):
         activation = jnp.sum(edges.signal) + self.bias
         self.rate = jnp.tanh(activation)
+
+    def update_parameters(self, edges):
+        pass

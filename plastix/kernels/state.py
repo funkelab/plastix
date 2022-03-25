@@ -1,4 +1,7 @@
-class State:
+from ..attribute import Attribute
+
+
+class State(Attribute):
     '''Declaration class for kernel states.
 
     To be used as class attributes in custom edge and node kernels.
@@ -21,6 +24,10 @@ class State:
     '''
 
     def __init__(self, shape, init_fun=None, shared=False):
-        self.shape = shape
+
+        super().__init__(shape)
         self.init_fun = init_fun
         self.shared = shared
+
+    def __repr__(self):
+        return f"{self.shape}, shared={self.shared}"

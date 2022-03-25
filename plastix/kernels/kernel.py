@@ -1,16 +1,8 @@
+from ..attribute_array_view import AttributeArrayView
 from .parameter import Parameter
 from .state import State
 import abc
 import jax.numpy as jnp
-import numpy as np
-
-
-class KernelAttributes:
-
-    def __init__(self):
-        self.data = None
-        self.shared_data = None
-        self.views = None
 
 
 class Kernel(abc.ABC):
@@ -36,42 +28,6 @@ class Kernel(abc.ABC):
             for name, attribute in cls.__dict__.items()
             if isinstance(attribute, Parameter)
         }
-
-        # assign each state to a slice in the state array
-        cls._attribute_slices = {}
-        offset = 0
-        shared_offset = 0
-        for name, state in cls._states.items():
-            length = np.prod(state.shape)
-            if state.shared:
-                begin = shared_offset
-                end = shared_offset + length
-                shared_offset += length
-            else:
-                begin = offset
-                end = offset + length
-                offset += length
-            cls._attribute_slices[name] = slice(begin, end)
-
-        # assign each parameter to a slice in the parameter array
-        offset = 0
-        shared_offset = 0
-        for name, parameter in cls._parameters.items():
-            length = np.prod(parameter.shape)
-            if state.shared:
-                begin = shared_offset
-                end = shared_offset + length
-                shared_offset += length
-            else:
-                begin = offset
-                end = offset + length
-                offset += length
-            cls._attribute_slices[name] = slice(begin, end)
-
-    @classmethod
-    def _get_attribute_slice(cls, name):
-        cls._parse_attributes()
-        return cls._attribute_slices[name]
 
     @classmethod
     def _init_attribute_data(cls, attributes):
@@ -118,38 +74,33 @@ class Kernel(abc.ABC):
     def init_shared_state_data(cls):
         return cls._init_attribute_data(cls.get_states(shared=True).values())
 
-    def _set_attribute_data(self, attributes, data, shared_data):
+    def _set_attribute_data(self, attributes, data):
 
-        kernel_attributes = KernelAttributes()
-        kernel_attributes.data = data
-        kernel_attributes.shared_data = shared_data
-        kernel_attributes.views = {}
+        attribute_view = AttributeArrayView(attributes, data)
 
         for name, attribute in attributes.items():
-            attribute_slice = self._get_attribute_slice(name)
-            if attribute.shared:
-                attribute_view = \
-                    shared_data[attribute_slice].reshape(attribute.shape)
-            else:
-                attribute_view = data[attribute_slice].reshape(attribute.shape)
-            self.__setattr__(name, attribute_view)
-            kernel_attributes.views[name] = attribute_view
+            self.__setattr__(name, attribute_view.__getattr__(name))
 
-        return kernel_attributes
+        return attribute_view
 
     def set_state_data(self, data, shared_data=None):
+
         self.__states = self._set_attribute_data(
-            self.get_states(),
-            data,
-            shared_data)
+            self.get_states(shared=False),
+            data)
+
+        if shared_data is not None:
+            self.__shared_states = self._set_attribute_data(
+                self.get_states(shared=True),
+                shared_data)
 
     def get_state_data(self, include_shared=False):
 
         # if nothing was changed, no reason to create a new tensor
         if all(
-                getattr(self, name) is self.__states.views[name]
+                getattr(self, name) is self.__states.__getattr__(name)
                 for name in self.get_states(shared=False).keys()):
-            data = self.__states.data
+            data = self.__states._array
 
         else:
 
@@ -196,18 +147,23 @@ class Kernel(abc.ABC):
         )
 
     def set_parameter_data(self, data, shared_data=None):
+
         self.__parameters = self._set_attribute_data(
-            self.get_parameters(),
-            data,
-            shared_data)
+            self.get_parameters(shared=False),
+            data)
+
+        if shared_data is not None:
+            self.__shared_parameters = self._set_attribute_data(
+                self.get_parameters(shared=True),
+                shared_data)
 
     def get_parameter_data(self, include_shared=False):
 
         # if nothing was changed, no reason to create a new tensor
         if all(
-                getattr(self, name) is self.__parameters.views[name]
+                getattr(self, name) is self.__parameters.__getattr__(name)
                 for name in self.get_parameters(shared=False).keys()):
-            data = self.__parameters.data
+            data = self.__parameters._array
 
         else:
 
@@ -244,3 +200,14 @@ class Kernel(abc.ABC):
 
         raise AttributeError(
                 f"Object of type {self.__class__} has no attribute {name}")
+
+    def __repr__(self):
+        r = f"Kernel of type {self.__class__.__name__} with:"
+        r += "\nStates:"
+        for name, attribute in self.get_states().items():
+            r += f"\n\t{name}: {attribute}"
+        r += "\nParameters:"
+        for name, attribute in self.get_parameters().items():
+            r += f"\n\t{name}: {attribute}"
+        r += "\n"
+        return r

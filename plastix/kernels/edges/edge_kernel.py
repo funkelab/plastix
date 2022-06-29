@@ -3,8 +3,8 @@ import abc
 
 
 class EdgeKernel(Kernel):
-    '''Same as :class:`EdgeKernel`, but without access to the outgoing node
-    state. More efficient than :class:`EdgeKernel`.
+    '''Same as :class:`NodeKernel`, but without access to the outgoing node
+    state. More efficient than :class:`NodeKernel`.
     '''
 
     def _update_state(

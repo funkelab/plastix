@@ -4,14 +4,15 @@ from .parameters import LayerParameters
 from .states import LayerStates
 import jax
 
+
 class SparseLayer:
 
     def __init__(self, edge_indices, n, m, edge_kernel, node_kernel):
         '''
-        edge_indices is list of tuple (i, j) where i is the index of the input node
-        and j is the index of the output node.
+        edge_indices is list of tuple (i, j) where i is the index of the input
+        node and j is the index of the output node.
         '''
-        
+
         self.m = m
         self.n = n
 
@@ -32,9 +33,12 @@ class SparseLayer:
         output_node_states = jax.vmap(
             self.node_kernel.init_state_data,
             axis_size=self.m)()
-        # vmap over edge_indices, do we want to initialize the state of all edges?
-        # allocating memory, and then do the computation only on the edges that are used.
-        # ^nope: we need to allocate a list of edge_states, check how to do this.
+        # vmap over edge_indices, do we want to initialize the state of all
+        # edges?
+        # allocating memory, and then do the computation only on the edges that
+        # are used.
+        # ^nope: we need to allocate a list of edge_states, check how to do
+        # this.
         edge_states = jax.vmap(
                 self.edge_kernel.init_state_data,
                 axis_size=self.num_edges)()
@@ -142,7 +146,7 @@ class SparseLayer:
         #######################
 
         # pass input node class and shared attributes to edge kernel
-        # how to access edge states? will have to check this! 
+        # how to access edge states? will have to check this!
         def edge_kernel(es, ep, ns, indices):
             return self.edge_kernel._update_state(
                 self.node_kernel.__class__,
@@ -156,7 +160,8 @@ class SparseLayer:
         # edge_parameters   : (?)
         # input_node_states : (?)
 
-        # map over edge_indices tuple (i, j)); should the others; es, ep be None?
+        # map over edge_indices tuple (i, j)); should the others; es, ep be
+        # None?
         vedge_kernel = jax.vmap(edge_kernel, in_axes=(None, None, None, 0))
 
         edge_states = vedge_kernel(

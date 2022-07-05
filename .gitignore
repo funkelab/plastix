@@ -1,5 +1,5 @@
 *.sw[pmno]
-*.ipynb
+playground*
 *.pyc
 *.egg-info
 *.dat

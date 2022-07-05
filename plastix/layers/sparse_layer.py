@@ -7,17 +7,24 @@ import jax
 
 class SparseLayer:
 
-    def __init__(self, edge_indices, n, m, edge_kernel, node_kernel):
+    def __init__(self, n, m, edge_indices, edge_kernel, node_kernel):
         '''
-        edge_indices is list of tuple (i, j) where i is the index of the input
-        node and j is the index of the output node.
+        edge_indices is jax array of shape (k, 2), where edge_indices[i, 0] is
+        the index of the input node and edge_indices[i, 1] is the index of the
+        output node of edge i.
         '''
 
         self.m = m
         self.n = n
 
-        self.num_edges = len(edge_indices)
-        self.edge_indices = edge_indices
+        assert len(edge_indices.shape) == 2, \
+            "Edge indices should be given as a 2D array of shape (k, 2)."
+        assert edge_indices.shape[1] == 2, \
+            "Edge indices should be given as a 2D array of shape (k, 2)."
+
+        self.num_edges = edge_indices.shape[0]
+        self.u_indices = edge_indices[:, 0]
+        self.v_indices = edge_indices[:, 1]
         self.edge_kernel = edge_kernel
         self.node_kernel = node_kernel
 
@@ -33,12 +40,6 @@ class SparseLayer:
         output_node_states = jax.vmap(
             self.node_kernel.init_state_data,
             axis_size=self.m)()
-        # vmap over edge_indices, do we want to initialize the state of all
-        # edges?
-        # allocating memory, and then do the computation only on the edges that
-        # are used.
-        # ^nope: we need to allocate a list of edge_states, check how to do
-        # this.
         edge_states = jax.vmap(
                 self.edge_kernel.init_state_data,
                 axis_size=self.num_edges)()
@@ -80,8 +81,8 @@ class SparseLayer:
             self.node_kernel.init_parameter_data,
             axis_size=self.m)()
         edge_parameters = jax.vmap(
-                self.edge_kernel.init_parameter_data,
-                axis_size=self.num_edges)()
+            self.edge_kernel.init_parameter_data,
+            axis_size=self.num_edges)()
 
         shared_edge_parameters = self.edge_kernel.init_shared_parameter_data()
         shared_node_parameters = self.node_kernel.init_shared_parameter_data()
@@ -145,14 +146,23 @@ class SparseLayer:
         # compute edge states #
         #######################
 
-        # pass input node class and shared attributes to edge kernel
-        # how to access edge states? will have to check this!
-        def edge_kernel(es, ep, ns, indices):
+        # shapes of arrays retrieved above:
+        #
+        # edge_states           : (k, ?)
+        # edge_parameters       : (k, ?)
+        # input_node_states     : (n, ?)
+        # output_node_states    : (m, ?)
+        # output_node_parameters: (m, ?)
+        #
+        # where k is the number of edges, ? is the size of the state/parameters
+        # for this edge/node (all together in one 1D array)
+
+        def edge_kernel(es, ep, ns):
             return self.edge_kernel._update_state(
                 self.node_kernel.__class__,
                 shared_edge_states,
                 shared_edge_parameters,
-                es[indices[0]], ep[indices[1]], ns)
+                es, ep, ns)
 
         # edge_kernel argument shapes:
         #
@@ -160,14 +170,19 @@ class SparseLayer:
         # edge_parameters   : (?)
         # input_node_states : (?)
 
-        # map over edge_indices tuple (i, j)); should the others; es, ep be
-        # None?
-        vedge_kernel = jax.vmap(edge_kernel, in_axes=(None, None, None, 0))
+        # map over all edges i=1,...,k
+        vedge_kernel = jax.vmap(edge_kernel)
+
+        # vedge_kernel argument shapes:
+        #
+        # edge_states       : (k, ?)
+        # edge_parameters   : (k, ?)
+        # input_node_states : (k, ?)
 
         edge_states = vedge_kernel(
             edge_states,
             edge_parameters,
-            input_node_states)
+            input_node_states[self.u_indices])
 
         #######################
         # compute node states #
@@ -185,21 +200,29 @@ class SparseLayer:
         #
         # node_states    : (?)
         # node_parameters: (?)
-        # edge_states    : (num_edges, ?)
+        # edge_states    : (n_j, ?)
+        #
+        # where n_j is the number of incoming edges into output node j
 
-        # TODO: map over node_indices tuple (i); how to do this?
-        vnode_kernel = jax.vmap(node_kernel, in_axes=(0, 0, 1))
+        def update_output_node(ns, np, j):
+            return node_kernel(
+                ns,
+                np,
+                edge_states[self.in_nodes[j]])
+
+        # map over j = 1,...,m
+        vnode_kernel = jax.vmap(node_kernel)
 
         # vnode_kernel argument shapes:
         #
         # node_states    : (m, ?)
         # node_parameters: (m, ?)
-        # edge_states    : (n, m, ?)
+        # node index     : (m,)
 
         output_node_states = vnode_kernel(
             output_node_states,
             output_node_parameters,
-            edge_states)
+            self.output_node_indices)
 
         output_node_state_view = AttributeArrayView(
             self.node_kernel.get_states(shared=False),

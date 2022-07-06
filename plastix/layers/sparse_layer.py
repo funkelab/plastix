@@ -3,28 +3,38 @@ from ..kernels.kernel_attribute_view import KernelAttributeView
 from .parameters import LayerParameters
 from .states import LayerStates
 import jax
+import jax.numpy as jnp
 
 
 class SparseLayer:
-
-    def __init__(self, n, m, edge_indices, edge_kernel, node_kernel):
-        '''
-        edge_indices is jax array of shape (k, 2), where edge_indices[i, 0] is
-        the index of the input node and edge_indices[i, 1] is the index of the
-        output node of edge i.
-        '''
+    def __init__(self, n, m, in_edges_to_nodes, edge_kernel, node_kernel):
+        """
+        in_edges_to_node: is a tuple of tuples with the j_th tuple containing
+        the indices of the edges that connect to the j_th output node.
+        len(in_edges_to_node) = m
+        """
 
         self.m = m
         self.n = n
 
-        assert len(edge_indices.shape) == 2, \
-            "Edge indices should be given as a 2D array of shape (k, 2)."
-        assert edge_indices.shape[1] == 2, \
-            "Edge indices should be given as a 2D array of shape (k, 2)."
+        assert (
+            len(in_edges_to_nodes) == n
+        ), "in_edges_to_node must be a tuple of tuples of length n (number of input nodes)"
 
-        self.num_edges = edge_indices.shape[0]
-        self.u_indices = edge_indices[:, 0]
-        self.v_indices = edge_indices[:, 1]
+        self.in_edges_to_nodes = in_edges_to_nodes
+
+        u_indices, v_indices = [], []
+
+        for j in range(m):
+            u_indices += [j] * len(in_edges_to_nodes[j])
+            v_indices += list(in_edges_to_nodes[j])
+        assert len(u_indices) == len(
+            v_indices
+        ), "wrong layer connectivity provided"
+
+        self.num_edges = len(u_indices)
+        self.u_indices = jnp.array(u_indices)
+        self.v_indices = jnp.array(v_indices)
         self.edge_kernel = edge_kernel
         self.node_kernel = node_kernel
 
@@ -35,78 +45,79 @@ class SparseLayer:
     def init_state(self):
 
         input_node_states = jax.vmap(
-            self.node_kernel.init_state_data,
-            axis_size=self.n)()
+            self.node_kernel.init_state_data, axis_size=self.n
+        )()
         output_node_states = jax.vmap(
-            self.node_kernel.init_state_data,
-            axis_size=self.m)()
+            self.node_kernel.init_state_data, axis_size=self.m
+        )()
         edge_states = jax.vmap(
-                self.edge_kernel.init_state_data,
-                axis_size=self.num_edges)()
+            self.edge_kernel.init_state_data, axis_size=self.num_edges
+        )()
 
         shared_edge_states = self.edge_kernel.init_shared_state_data()
         shared_node_states = self.node_kernel.init_shared_state_data()
 
         input_node_state_view = AttributeArrayView(
-            self.node_kernel.get_states(shared=False),
-            input_node_states)
+            self.node_kernel.get_states(shared=False), input_node_states
+        )
         shared_node_state_view = AttributeArrayView(
-            self.node_kernel.get_states(shared=True),
-            shared_node_states)
+            self.node_kernel.get_states(shared=True), shared_node_states
+        )
         output_node_state_view = AttributeArrayView(
-            self.node_kernel.get_states(shared=False),
-            output_node_states)
+            self.node_kernel.get_states(shared=False), output_node_states
+        )
         edge_state_view = AttributeArrayView(
-            self.edge_kernel.get_states(shared=False),
-            edge_states)
+            self.edge_kernel.get_states(shared=False), edge_states
+        )
         shared_edge_state_view = AttributeArrayView(
-            self.edge_kernel.get_states(shared=True),
-            shared_edge_states)
+            self.edge_kernel.get_states(shared=True), shared_edge_states
+        )
 
-        input_nodes = KernelAttributeView([
-            input_node_state_view,
-            shared_node_state_view])
-        output_nodes = KernelAttributeView([
-            output_node_state_view,
-            shared_node_state_view])
-        edges = KernelAttributeView([
-            edge_state_view,
-            shared_edge_state_view])
+        input_nodes = KernelAttributeView(
+            [input_node_state_view, shared_node_state_view]
+        )
+        output_nodes = KernelAttributeView(
+            [output_node_state_view, shared_node_state_view]
+        )
+        edges = KernelAttributeView([edge_state_view, shared_edge_state_view])
 
         return LayerStates(input_nodes, output_nodes, edges)
 
     def init_parameters(self):
 
         output_node_parameters = jax.vmap(
-            self.node_kernel.init_parameter_data,
-            axis_size=self.m)()
+            self.node_kernel.init_parameter_data, axis_size=self.m
+        )()
         edge_parameters = jax.vmap(
-            self.edge_kernel.init_parameter_data,
-            axis_size=self.num_edges)()
+            self.edge_kernel.init_parameter_data, axis_size=self.num_edges
+        )()
 
         shared_edge_parameters = self.edge_kernel.init_shared_parameter_data()
         shared_node_parameters = self.node_kernel.init_shared_parameter_data()
 
         output_node_parameter_view = AttributeArrayView(
             self.node_kernel.get_parameters(shared=False),
-            output_node_parameters)
+            output_node_parameters,
+        )
         shared_node_parameter_view = AttributeArrayView(
             self.node_kernel.get_parameters(shared=True),
-            shared_node_parameters)
+            shared_node_parameters,
+        )
 
         edge_parameter_view = AttributeArrayView(
-            self.edge_kernel.get_parameters(shared=False),
-            edge_parameters)
+            self.edge_kernel.get_parameters(shared=False), edge_parameters
+        )
         shared_edge_parameter_view = AttributeArrayView(
             self.edge_kernel.get_parameters(shared=True),
-            shared_edge_parameters)
+            shared_edge_parameters,
+        )
 
-        output_nodes = KernelAttributeView([
-            output_node_parameter_view,
-            shared_node_parameter_view])
-        edges = KernelAttributeView([
-            edge_parameter_view,
-            shared_edge_parameter_view])
+        output_nodes = KernelAttributeView(
+            [output_node_parameter_view, shared_node_parameter_view]
+        )
+        edges = KernelAttributeView(
+            [edge_parameter_view, shared_edge_parameter_view]
+        )
 
         return LayerParameters(output_nodes, edges)
 
@@ -162,7 +173,10 @@ class SparseLayer:
                 self.node_kernel.__class__,
                 shared_edge_states,
                 shared_edge_parameters,
-                es, ep, ns)
+                es,
+                ep,
+                ns,
+            )
 
         # edge_kernel argument shapes:
         #
@@ -180,21 +194,14 @@ class SparseLayer:
         # input_node_states : (k, ?)
 
         edge_states = vedge_kernel(
-            edge_states,
-            edge_parameters,
-            input_node_states[self.u_indices])
+            edge_states, edge_parameters, input_node_states[self.u_indices]
+        )
 
         #######################
         # compute node states #
         #######################
 
         # pass input edge class and shared attributes to node kernel
-        def node_kernel(ns, np, es):
-            return self.node_kernel._update_state(
-                self.edge_kernel.__class__,
-                shared_node_states,
-                shared_node_parameters,
-                ns, np, es)
 
         # node_kernel argument shapes:
         #
@@ -204,45 +211,61 @@ class SparseLayer:
         #
         # where n_j is the number of incoming edges into output node j
 
-        def update_output_node(ns, np, j):
-            return node_kernel(
+        def node_kernel(ns, np, es):
+            return self.node_kernel._update_state(
+                self.edge_kernel.__class__,
+                shared_node_states,
+                shared_node_parameters,
                 ns,
                 np,
-                edge_states[self.in_nodes[j]])
+                es,
+            )
 
-        # map over j = 1,...,m
-        vnode_kernel = jax.vmap(node_kernel)
-
-        # vnode_kernel argument shapes:
-        #
-        # node_states    : (m, ?)
-        # node_parameters: (m, ?)
-        # node index     : (m,)
-
-        output_node_states = vnode_kernel(
+        def update_output_nodes(
             output_node_states,
             output_node_parameters,
-            self.output_node_indices)
+            edge_states,
+            in_edges_to_nodes,
+        ):
+            return jnp.array(
+                [
+                    node_kernel(
+                        output_node_states[j],
+                        output_node_parameters[j],
+                        edge_states[jnp.array(in_edges_to_nodes[j])],
+                    )
+                    for j in range(self.m)
+                ]
+            )
+
+        jit_update_output_nodes = jax.jit(
+            update_output_nodes, static_argnames=("in_edges_to_nodes",)
+        )
+
+        output_node_states = jit_update_output_nodes(
+            output_node_states,
+            output_node_parameters,
+            edge_states,
+            self.in_edges_to_nodes,
+        )
 
         output_node_state_view = AttributeArrayView(
-            self.node_kernel.get_states(shared=False),
-            output_node_states)
+            self.node_kernel.get_states(shared=False), output_node_states
+        )
         shared_node_state_view = AttributeArrayView(
-            self.node_kernel.get_states(shared=True),
-            shared_node_states)
+            self.node_kernel.get_states(shared=True), shared_node_states
+        )
         edge_state_view = AttributeArrayView(
-            self.edge_kernel.get_states(shared=False),
-            edge_states)
+            self.edge_kernel.get_states(shared=False), edge_states
+        )
         shared_edge_state_view = AttributeArrayView(
-            self.edge_kernel.get_states(shared=True),
-            shared_edge_states)
+            self.edge_kernel.get_states(shared=True), shared_edge_states
+        )
 
-        output_nodes = KernelAttributeView([
-            output_node_state_view,
-            shared_node_state_view])
-        edges = KernelAttributeView([
-            edge_state_view,
-            shared_edge_state_view])
+        output_nodes = KernelAttributeView(
+            [output_node_state_view, shared_node_state_view]
+        )
+        edges = KernelAttributeView([edge_state_view, shared_edge_state_view])
 
         return LayerStates(state.input_nodes, output_nodes, edges)
 
@@ -264,14 +287,18 @@ class SparseLayer:
         # compute edge parameters #
         ###########################
 
-        # pass input node class and shared attributes to edge kernel
+        # pass input, output node class and shared attributes to edge kernel
         def edge_kernel(es, ep, ins, ons):
             return self.edge_kernel._update_parameters(
                 self.node_kernel.__class__,
                 self.node_kernel.__class__,
                 shared_edge_states,
                 shared_edge_parameters,
-                es, ep, ins, ons)
+                es,
+                ep,
+                ins,
+                ons,
+            )
 
         # edge_kernel argument shapes:
         #
@@ -280,31 +307,22 @@ class SparseLayer:
         # input_node_states : (?)
         # output_node_states: (?)
 
-        # map over j = 1,...,m
-        vedge_kernel = jax.vmap(edge_kernel, in_axes=(0, 0, None, 0))
+        # map over j = 1,...k (number of edges)
+        vedge_kernel = jax.vmap(edge_kernel, in_axes=(0, 0, 0, 0))
 
         # vedge_kernel argument shapes:
         #
-        # edge_states       : (m, ?)
-        # edge_parameters   : (m, ?)
-        # input_node_states : (?)
-        # output_node_states: (m, ?)
+        # edge_states       : (k, ?)
+        # edge_parameters   : (k, ?)
+        # input_node_states : (k, ?)
+        # output_node_states: (k, ?)
 
-        # map over i = 1,...,n
-        vvedge_kernel = jax.vmap(vedge_kernel, in_axes=(0, 0, 0, None))
-
-        # vvedge_kernel argument shapes:
-        #
-        # edge_states       : (n, m, ?)
-        # edge_parameters   : (n, m, ?)
-        # input_node_states : (n, ?)
-        # output_node_states: (m, ?)
-
-        edge_parameters = vvedge_kernel(
+        edge_parameters = vedge_kernel(
             edge_states,
             edge_parameters,
-            input_node_states,
-            output_node_states)
+            input_node_states[self.u_indices],
+            output_node_states[self.v_indices],
+        )
 
         #######################
         # compute node states #
@@ -316,47 +334,69 @@ class SparseLayer:
                 self.edge_kernel.__class__,
                 shared_node_states,
                 shared_node_parameters,
-                ns, np, es)
+                ns,
+                np,
+                es,
+            )
 
         # node_kernel argument shapes:
         #
         # node_states    : (?)
         # node_parameters: (?)
-        # edge_states    : (n, ?)
+        # edge_states    : (n_j, ?)
+        # where n_j is the number of incoming edges into output node j
 
-        # map over j = 1,...,m
-        vnode_kernel = jax.vmap(node_kernel, in_axes=(0, 0, 1))
-
-        # vnode_kernel argument shapes:
-        #
-        # node_states    : (m, ?)
-        # node_parameters: (m, ?)
-        # edge_states    : (n, m, ?)
-
-        output_node_parameters = vnode_kernel(
+        def update_output_nodes(
             output_node_states,
             output_node_parameters,
-            edge_states)
+            edge_states,
+            in_edges_to_nodes,
+        ):
+            return jnp.array(
+                [
+                    node_kernel(
+                        output_node_states[j],
+                        output_node_parameters[j],
+                        edge_states[jnp.array(in_edges_to_nodes[j])],
+                    )
+                    for j in range(self.m)
+                ]
+            )
+
+        # map over j = 1,...,m
+        jit_update_output_nodes = jax.jit(
+            update_output_nodes, static_argnames=("in_edges_to_nodes",)
+        )
+
+        output_node_parameters = jit_update_output_nodes(
+            output_node_states,
+            output_node_parameters,
+            edge_states,
+            self.in_edges_to_nodes,
+        )
 
         output_node_parameter_view = AttributeArrayView(
             self.node_kernel.get_parameters(shared=False),
-            output_node_parameters)
+            output_node_parameters,
+        )
         shared_node_parameter_view = AttributeArrayView(
             self.node_kernel.get_parameters(shared=True),
-            shared_node_parameters)
+            shared_node_parameters,
+        )
 
         edge_parameter_view = AttributeArrayView(
-            self.edge_kernel.get_parameters(shared=False),
-            edge_parameters)
+            self.edge_kernel.get_parameters(shared=False), edge_parameters
+        )
         shared_edge_parameter_view = AttributeArrayView(
             self.edge_kernel.get_parameters(shared=True),
-            shared_edge_parameters)
+            shared_edge_parameters,
+        )
 
-        output_nodes = KernelAttributeView([
-            output_node_parameter_view,
-            shared_node_parameter_view])
-        edges = KernelAttributeView([
-            edge_parameter_view,
-            shared_edge_parameter_view])
+        output_nodes = KernelAttributeView(
+            [output_node_parameter_view, shared_node_parameter_view]
+        )
+        edges = KernelAttributeView(
+            [edge_parameter_view, shared_edge_parameter_view]
+        )
 
         return LayerParameters(output_nodes, edges)

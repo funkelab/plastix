@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import plastix as px
 import unittest
+import jax
 
 
 class TestSparseLayer(unittest.TestCase):
@@ -135,3 +136,16 @@ class TestSparseLayer(unittest.TestCase):
         dl_state = dense_layer.update_state(dl_state, dl_parameters)
         sl_state = sparse_layer.update_state(sl_state, sl_parameters)
         assert (dl_state.output_nodes.rate == sl_state.output_nodes.rate).all()
+
+        # random input to output
+        key = jax.random.PRNGKey(seed=0)
+        layer_input = jax.random.normal(key, (5,))
+        dl_state.input_nodes.rate = layer_input
+        sl_state.input_nodes.rate = layer_input
+
+        dl_state = dense_layer.update_state(dl_state, dl_parameters)
+        sl_state = sparse_layer.update_state(sl_state, sl_parameters)
+        assert (
+            round(dl_state.output_nodes.rate, 5)
+            == round(sl_state.output_nodes.rate, 5)
+        ).all()

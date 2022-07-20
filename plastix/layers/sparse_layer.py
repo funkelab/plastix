@@ -7,7 +7,6 @@ import jax.numpy as jnp
 
 
 class SparseLayer:
-
     def __init__(self, n, m, edges, edge_kernel, node_kernel):
         """Create a sparse layer.
 
@@ -32,7 +31,9 @@ class SparseLayer:
 
         self.m = m
         self.n = n
-        self.edges = edges
+        assert len(edges) > 0, "Number of edges in the graph cannot be zero"
+        # sort the edges by output node so as to have continuous allocation
+        self.edges = sorted(edges, key=lambda x: x[1])
         self.num_edges = len(edges)
         self.edge_kernel = edge_kernel
         self.node_kernel = node_kernel
@@ -43,21 +44,32 @@ class SparseLayer:
         max_u = jnp.max(self.u_indices)
         max_v = jnp.max(self.v_indices)
 
-        assert max_u <= self.n, \
-            f"Invalid input node index {max_u} in edge list ({max_u}>{self.n})"
-        assert max_v <= self.m, \
-            f"Invalid output node index {max_v} in edge list " \
+        assert (
+            max_u <= self.n
+        ), f"Invalid input node index {max_u} in edge list ({max_u}>{self.n})"
+        assert max_v <= self.m, (
+            f"Invalid output node index {max_v} in edge list "
             "({max_v}>{self.m})"
+        )
 
-        # indices of incoming edges for each output node
-        self.edge_indices = [[] for _ in range(m)]
-        for index, (_, v) in enumerate(self.edges):
-            self.edge_indices[v].append(index)
+        # index range of incoming edges for each output node
+        edge_index_range = []
+        _start_pointer = _end_pointer = 0
+
+        for j in range(m):
+            while self.edges[_end_pointer][1] == j:
+                _end_pointer += 1
+                if _end_pointer == len(self.edges):
+                    break
+            edge_index_range.append((_start_pointer, _end_pointer))
+            _start_pointer = _end_pointer
 
         # convert to tuple of tuples to be hashable
-        self.edge_indices = tuple(
-            tuple(indices)
-            for indices in self.edge_indices
+        self.edge_index_range = tuple(edge_index_range)
+        assert len(self.edge_index_range) == self.m, (
+            f"Length of edge index range should be equal to the number of \
+            output nodes {len(self.edge_index_range)}"
+            "({len(self.edge_index_range)}>{self.m})"
         )
 
         # keep a compiled version of update functions
@@ -247,7 +259,7 @@ class SparseLayer:
             output_node_states,
             output_node_parameters,
             edge_states,
-            edge_indices,
+            edge_index_range,
         ):
             return jnp.array(
                 [
@@ -255,24 +267,22 @@ class SparseLayer:
                         output_node_states[j],
                         output_node_parameters[j],
                         edge_states[
-                            jnp.array(edge_indices[j])
-                            if edge_indices[j]
-                            else jnp.array([], dtype=jnp.int32)
-                        ]
+                            edge_index_range[j][0]: edge_index_range[j][1]
+                        ],
                     )
                     for j in range(self.m)
                 ]
             )
 
         jit_update_output_nodes = jax.jit(
-            update_output_nodes, static_argnames=("edge_indices",)
+            update_output_nodes, static_argnames=("edge_index_range",)
         )
 
         output_node_states = jit_update_output_nodes(
             output_node_states,
             output_node_parameters,
             edge_states,
-            self.edge_indices,
+            self.edge_index_range,
         )
 
         output_node_state_view = AttributeArrayView(
@@ -376,7 +386,7 @@ class SparseLayer:
             output_node_states,
             output_node_parameters,
             edge_states,
-            edge_indices,
+            edge_index_range,
         ):
             return jnp.array(
                 [
@@ -384,25 +394,22 @@ class SparseLayer:
                         output_node_states[j],
                         output_node_parameters[j],
                         edge_states[
-                            jnp.array(edge_indices[j])
-                            if edge_indices[j]
-                            else jnp.array([], dtype=jnp.int32)
-                        ]
+                            edge_index_range[j][0]: edge_index_range[j][1]
+                        ],
                     )
                     for j in range(self.m)
                 ]
             )
 
-        # map over j = 1,...,m
         jit_update_output_nodes = jax.jit(
-            update_output_nodes, static_argnames=("edge_indices",)
+            update_output_nodes, static_argnames=("edge_index_range",)
         )
 
         output_node_parameters = jit_update_output_nodes(
             output_node_states,
             output_node_parameters,
             edge_states,
-            self.edge_indices,
+            self.edge_index_range,
         )
 
         output_node_parameter_view = AttributeArrayView(

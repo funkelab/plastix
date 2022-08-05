@@ -4,7 +4,7 @@ import numpy as np
 
 @register_pytree_node_class
 class AttributeArrayView:
-    '''Mapping from named attributes to slices in an array.
+    """Mapping from named attributes to slices in an array.
 
     Allows accessing (reading and writing) of attribute values through their
     names.
@@ -21,7 +21,7 @@ class AttributeArrayView:
 
             The array to map the attributes to. The shape should be ``(s_1,
             ..., s_n, l)``, where ``l`` is the size of all attributes.
-    '''
+    """
 
     def __init__(self, attributes, array):
 
@@ -30,15 +30,15 @@ class AttributeArrayView:
         else:
             self._batch_slices = tuple(slice(None) for _ in array.shape[:-1])
 
-        total_size = np.sum(
-            np.prod(attribute.shape)
-            for attribute in attributes.values()
+        total_size = sum(
+            np.prod(attribute.shape) for attribute in attributes.values()
         )
         if total_size != array.shape[-1]:
             raise RuntimeError(
                 f"Attribute array has a size of {array.shape}, but attributes "
                 f"have a total size of {total_size}. The last dimension of "
-                "the attribute array has to match the total size.")
+                "the attribute array has to match the total size."
+            )
 
         self._array = array
         self._slices = {}
@@ -69,8 +69,9 @@ class AttributeArrayView:
     def __setattr__(self, name, value):
 
         if (
-                name in ['_batch_slices', '_array', '_slices', '_shapes'] or
-                name not in self._slices):
+            name in ["_batch_slices", "_array", "_slices", "_shapes"]
+            or name not in self._slices
+        ):
             return super().__setattr__(name, value)
 
         shape = self._shapes[name]
@@ -89,7 +90,7 @@ class AttributeArrayView:
     def tree_flatten(self):
         return (
             (self._array,),
-            (self._slices, self._shapes, self._batch_slices)
+            (self._slices, self._shapes, self._batch_slices),
         )
 
     @classmethod

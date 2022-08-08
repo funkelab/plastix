@@ -4,15 +4,15 @@ import jax.numpy as jnp
 
 
 def _get_coefficient_pow(pre, post, weight):
-    _get_coefficient_pow = jnp.outer(
+    coefficient_pow = jnp.outer(
         jnp.outer(
             jnp.array([pre**0, pre**1, pre**2]),
             jnp.array([post**0, post**1, post**2]),
         ),
         jnp.array([weight**0, weight**1, weight**2]),
     )
-    _get_coefficient_pow = jnp.reshape(_get_coefficient_pow, (3, 3, 3))
-    return _get_coefficient_pow
+    coefficient_pow = jnp.reshape(coefficient_pow, (3, 3, 3))
+    return coefficient_pow
 
 
 class RatePolynomialUpdate(EdgeKernel):

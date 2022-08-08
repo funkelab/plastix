@@ -4,6 +4,7 @@ playground*
 *.egg-info
 *.dat
 *.lock
+*.out
 .coverage
 build
 dist

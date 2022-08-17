@@ -103,7 +103,7 @@ class TestSparseLayer(unittest.TestCase):
             px.kernels.edges.FixedWeight(),
             px.kernels.nodes.SumNonlinear(),
         )
-        edges = [(i, j) for i in range(5) for j in range(3)]
+        edges = [(i, j) for j in range(3) for i in range(5)]
         sparse_layer = px.layers.SparseLayer(
             5,
             3,

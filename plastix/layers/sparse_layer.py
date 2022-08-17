@@ -32,8 +32,12 @@ class SparseLayer:
         self.m = m
         self.n = n
         assert len(edges) > 0, "Number of edges in the graph cannot be zero"
-        # sort the edges by output node so as to have continuous allocation
-        self.edges = sorted(edges, key=lambda x: x[1])
+        # check that the edges are sorted based on output node.
+        assert edges == sorted(
+            edges, key=lambda x: x[1]
+        ), "Edges should be sorted by output node."
+
+        self.edges = edges
         self.num_edges = len(edges)
         self.edge_kernel = edge_kernel
         self.node_kernel = node_kernel
